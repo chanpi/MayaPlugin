@@ -199,6 +199,8 @@ void MayaController::Execute(LPCSTR szCommand, double deltaX, double deltaY)
 	HWND tmpWnd = GetForegroundWindow();
 	if (tmpWnd != m_hTargetTopWnd) {
 		m_hTargetTopWnd = tmpWnd;
+		Sleep(0);
+		return;
 	}
 
 	// 実際に仮想キー・仮想マウス操作を行う子ウィンドウの取得

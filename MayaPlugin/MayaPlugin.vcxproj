@@ -54,7 +54,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>C:\Documents and Settings\Administrator\My Documents\Visual Studio 2010\Projects\Miscellaneous\Release;C:\Documents and Settings\Administrator\My Documents\Visual Studio 2010\Projects\I4C3DDriver\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:\Documents and Settings\Administrator\My Documents\Visual Studio 2010\Projects\I4C3DKeysHook\Release;C:\Documents and Settings\Administrator\My Documents\Visual Studio 2010\Projects\Miscellaneous\Release;C:\Documents and Settings\Administrator\My Documents\Visual Studio 2010\Projects\I4C3DDriver\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>ws2_32.lib;VirtualMotion.lib;I4C3DKeysHook.lib;Miscellaneous.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
@@ -74,7 +74,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalLibraryDirectories>C:\Documents and Settings\Administrator\My Documents\Visual Studio 2010\Projects\Miscellaneous\Release;C:\Documents and Settings\Administrator\My Documents\Visual Studio 2010\Projects\I4C3DDriver\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:\Documents and Settings\Administrator\My Documents\Visual Studio 2010\Projects\I4C3DKeysHook\Release;C:\Documents and Settings\Administrator\My Documents\Visual Studio 2010\Projects\Miscellaneous\Release;C:\Documents and Settings\Administrator\My Documents\Visual Studio 2010\Projects\I4C3DDriver\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>ws2_32.lib;VirtualMotion.lib;I4C3DKeysHook.lib;Miscellaneous.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
