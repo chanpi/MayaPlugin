@@ -199,6 +199,7 @@ void MayaController::Execute(LPCSTR szCommand, double deltaX, double deltaY)
 	HWND tmpWnd = GetForegroundWindow();
 	if (tmpWnd != m_hTargetTopWnd) {
 		m_hTargetTopWnd = tmpWnd;
+		Sleep(0);
 		return;
 	}
 
@@ -252,13 +253,11 @@ void MayaController::TumbleExecute(int deltaX, int deltaY)
 	m_currentPos.x				+= deltaX;
 	m_currentPos.y				+= deltaY;
 	mouseMessage.dragEndPos		= m_currentPos;
-
-	m_mouseMessage.uKeyState		= MK_LBUTTON;
 	if (m_ctrl) {
-		m_mouseMessage.uKeyState	|= MK_CONTROL;
+		mouseMessage.uKeyState = MK_CONTROL;
 	}
 	if (m_shift) {
-		m_mouseMessage.uKeyState	|= MK_SHIFT;
+		mouseMessage.uKeyState |= MK_SHIFT;
 	}
 	VMMouseDrag(&mouseMessage);
 	//if (m_mouseMessage.dragButton != LButtonDrag) {
@@ -308,12 +307,11 @@ void MayaController::TrackExecute(int deltaX, int deltaY)
 	m_currentPos.y				+= deltaY;
 
 	mouseMessage.dragEndPos		= m_currentPos;
-	m_mouseMessage.uKeyState		= MK_MBUTTON;
 	if (m_ctrl) {
-		m_mouseMessage.uKeyState	|= MK_CONTROL;
+		mouseMessage.uKeyState = MK_CONTROL;
 	}
 	if (m_shift) {
-		m_mouseMessage.uKeyState	|= MK_SHIFT;
+		mouseMessage.uKeyState |= MK_SHIFT;
 	}
 	VMMouseDrag(&mouseMessage);
 	//if (m_mouseMessage.dragButton != MButtonDrag) {
@@ -361,12 +359,11 @@ void MayaController::DollyExecute(int deltaX, int deltaY)
 	m_currentPos.y				+= deltaY;
 	
 	mouseMessage.dragEndPos		= m_currentPos;
-	m_mouseMessage.uKeyState		= MK_RBUTTON;
 	if (m_ctrl) {
-		m_mouseMessage.uKeyState	|= MK_CONTROL;
+		mouseMessage.uKeyState = MK_CONTROL;
 	}
 	if (m_shift) {
-		m_mouseMessage.uKeyState	|= MK_SHIFT;
+		mouseMessage.uKeyState |= MK_SHIFT;
 	}
 	VMMouseDrag(&mouseMessage);
 	//if (m_mouseMessage.dragButton != RButtonDrag) {
@@ -454,8 +451,10 @@ BOOL MayaController::IsModKeysDown(void)
 	}
 
 	if (i < retryCount) {
+		m_bSyskeyDown = TRUE;
 		return TRUE;
 	} else {
+		m_bSyskeyDown = FALSE;
 		return FALSE;
 	}
 }
@@ -479,21 +478,17 @@ void MayaController::ModKeyDown(void)
 
 		if (m_ctrl) {
 			VMVirtualKeyDown(m_hMouseInputWnd, VK_CONTROL, m_bUsePostMessageToSendKey);
-			Sleep(1);
 		}
 		if (m_alt) {
 			VMVirtualKeyDown(m_hMouseInputWnd, VK_MENU, m_bUsePostMessageToSendKey);
-			Sleep(1);
 		}
 		if (m_shift) {
 			VMVirtualKeyDown(m_hMouseInputWnd, VK_SHIFT, m_bUsePostMessageToSendKey);
-			Sleep(1);
 		}
 		SystemParametersInfo(SPI_SETFOREGROUNDLOCKTIMEOUT, 0, &dwBuf, 0);
 		AttachThreadInput(dwThreadId, dwTargetThreadId, FALSE);
 
-		m_bSyskeyDown = IsModKeysDown();
-		if (!m_bSyskeyDown) {
+		if (!(m_bSyskeyDown = IsModKeysDown())) {
 			TCHAR szError[BUFFER_SIZE];
 			_stprintf_s(szError, _countof(szError), _T("修飾キーが押されませんでした[タイムアウト]。") );
 			LogDebugMessage(Log_Error, szError);

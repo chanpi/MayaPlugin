@@ -199,7 +199,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 	static MayaController controller;
 	static SOCKET socketHandler = INVALID_SOCKET;
-	char buffer[BUFFER_SIZE*2] = {0};
+	char buffer[BUFFER_SIZE*4] = {0};
 	char szCommand[32] = {0};
 	double deltaX = 0;
 	double deltaY = 0;
