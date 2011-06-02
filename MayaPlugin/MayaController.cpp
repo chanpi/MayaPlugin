@@ -479,15 +479,12 @@ void MayaController::ModKeyDown(void)
 
 		if (m_ctrl) {
 			VMVirtualKeyDown(m_hMouseInputWnd, VK_CONTROL, m_bUsePostMessageToSendKey);
-			Sleep(1);
 		}
 		if (m_alt) {
 			VMVirtualKeyDown(m_hMouseInputWnd, VK_MENU, m_bUsePostMessageToSendKey);
-			Sleep(1);
 		}
 		if (m_shift) {
 			VMVirtualKeyDown(m_hMouseInputWnd, VK_SHIFT, m_bUsePostMessageToSendKey);
-			Sleep(1);
 		}
 		SystemParametersInfo(SPI_SETFOREGROUNDLOCKTIMEOUT, 0, &dwBuf, 0);
 		AttachThreadInput(dwThreadId, dwTargetThreadId, FALSE);
