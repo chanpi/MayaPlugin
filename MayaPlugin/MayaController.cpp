@@ -32,8 +32,8 @@ MayaController::MayaController(void)
 	m_fDollyRate		= 1;
 	m_bUsePostMessageToSendKey		= FALSE;
 	m_bUsePostMessageToMouseDrag	= TRUE;
-	m_millisecSleepAfterKeyDown		= 30;
-	m_ctrl = m_alt = m_shift = m_bSyskeyDown = FALSE;
+	m_ctrl = m_shift = m_bSyskeyDown = FALSE;
+	m_alt = TRUE;
 
 	ZeroMemory(&m_mouseMessage, sizeof(m_mouseMessage));
 	m_mouseMessage.dragButton = DragNONE;
@@ -67,15 +67,17 @@ MayaController::~MayaController(void)
 
 BOOL MayaController::Initialize(LPCSTR szBuffer, char* termination)
 {
-	char tmpCommand[16];
-	char szModKeys[32];
+	char tmpCommand[BUFFER_SIZE] = {0};
+	char szModKeys[BUFFER_SIZE] = {0};
 
 	sscanf_s(szBuffer, g_initCommandFormat, tmpCommand,	sizeof(tmpCommand), szModKeys, sizeof(szModKeys), &m_fTumbleRate, &m_fTrackRate, &m_fDollyRate, termination);
 	if (!m_fTumbleRate) {
 		m_fTumbleRate = 1.0;
-	} else if (!m_fTrackRate){
+	}
+	if (!m_fTrackRate){
 		m_fTrackRate = 1.0;
-	} else if (!m_fDollyRate) {
+	}
+	if (!m_fDollyRate) {
 		m_fDollyRate = 1.0;
 	}
 
@@ -99,7 +101,6 @@ BOOL MayaController::Initialize(LPCSTR szBuffer, char* termination)
  */
 BOOL MayaController::InitializeModifierKeys(PCSTR szModifierKeys)
 {
-	m_ctrl = m_alt = m_shift = m_bSyskeyDown = FALSE;
 	if (_strcmpi(szModifierKeys, "NULL") == 0 || szModifierKeys == NULL) {
 		m_alt = TRUE;
 		AddHookedKeyCode(VK_MENU);
@@ -126,14 +127,14 @@ BOOL MayaController::InitializeModifierKeys(PCSTR szModifierKeys)
 
 		case _T('S'):
 		case _T('s'):
-			AddHookedKeyCode( VK_SHIFT );
 			m_shift = TRUE;
+			AddHookedKeyCode( VK_SHIFT );
 			break;
 
 		case _T('A'):
 		case _T('a'):
-			AddHookedKeyCode( VK_MENU );
 			m_alt = TRUE;
+			AddHookedKeyCode( VK_MENU );
 			break;
 		}
 	} while (pType != NULL);
@@ -144,10 +145,13 @@ BOOL MayaController::InitializeModifierKeys(PCSTR szModifierKeys)
 
 BOOL MayaController::GetTargetChildWnd(void)
 {
+	m_hKeyInputWnd = NULL;
 	EnumChildWindows(m_hTargetTopWnd, EnumChildProcForKeyInput, (LPARAM)&m_hKeyInputWnd);
 	if (m_hKeyInputWnd == NULL) {
 		return FALSE;
 	}
+
+	m_hMouseInputWnd = NULL;
 	EnumChildWindows(m_hKeyInputWnd, EnumChildProcForMouseInput, (LPARAM)&m_hMouseInputWnd);
 	if (m_hMouseInputWnd == NULL) {
 		return FALSE;
@@ -194,13 +198,9 @@ BOOL MayaController::CheckTargetState(void)
 }
 
 
-void MayaController::Execute(LPCSTR szCommand, double deltaX, double deltaY)
+void MayaController::Execute(HWND hWnd, LPCSTR szCommand, double deltaX, double deltaY)
 {
-	HWND tmpWnd = GetForegroundWindow();
-	if (tmpWnd != m_hTargetTopWnd) {
-		m_hTargetTopWnd = tmpWnd;
-		return;
-	}
+	m_hTargetTopWnd = hWnd;
 
 	// 実際に仮想キー・仮想マウス操作を行う子ウィンドウの取得
 	if (!GetTargetChildWnd()) {
@@ -218,13 +218,13 @@ void MayaController::Execute(LPCSTR szCommand, double deltaX, double deltaY)
 	} else if (_strcmpi(szCommand, COMMAND_TRACK) == 0) {
 		ModKeyDown();
 		if (m_bSyskeyDown) {
-			TrackExecute((INT)(deltaX * m_fTumbleRate), (INT)(deltaY * m_fTumbleRate));
+			TrackExecute((INT)(deltaX * m_fTrackRate), (INT)(deltaY * m_fTrackRate));
 		}
 
 	} else if (_strcmpi(szCommand, COMMAND_DOLLY) == 0) {
 		ModKeyDown();
 		if (m_bSyskeyDown) {
-			DollyExecute((INT)(deltaX * m_fTumbleRate), (INT)(deltaY * m_fTumbleRate));
+			DollyExecute((INT)(deltaX * m_fDollyRate), (INT)(deltaY * m_fDollyRate));
 		}
 
 	} else {
@@ -241,17 +241,16 @@ void MayaController::Execute(LPCSTR szCommand, double deltaX, double deltaY)
 
 void MayaController::TumbleExecute(int deltaX, int deltaY)
 {
-	VMMouseMessage mouseMessage = {0};
 	if (!CheckTargetState()) {
 		return;
 	}
-	mouseMessage.bUsePostMessage = m_bUsePostMessageToMouseDrag;
-	mouseMessage.hTargetWnd		= m_hMouseInputWnd;
-	mouseMessage.dragButton		= LButtonDrag;
-	mouseMessage.dragStartPos	= m_currentPos;
-	m_currentPos.x				+= deltaX;
-	m_currentPos.y				+= deltaY;
-	mouseMessage.dragEndPos		= m_currentPos;
+	m_mouseMessage.bUsePostMessage	= m_bUsePostMessageToMouseDrag;
+	m_mouseMessage.hTargetWnd		= m_hMouseInputWnd;
+	m_mouseMessage.dragButton		= LButtonDrag;
+	m_mouseMessage.dragStartPos		= m_currentPos;
+	m_currentPos.x					+= deltaX;
+	m_currentPos.y					+= deltaY;
+	m_mouseMessage.dragEndPos		= m_currentPos;
 
 	m_mouseMessage.uKeyState		= MK_LBUTTON;
 	if (m_ctrl) {
@@ -260,54 +259,23 @@ void MayaController::TumbleExecute(int deltaX, int deltaY)
 	if (m_shift) {
 		m_mouseMessage.uKeyState	|= MK_SHIFT;
 	}
-	VMMouseDrag(&mouseMessage);
-	//if (m_mouseMessage.dragButton != LButtonDrag) {
-	//	if (m_mouseMessage.dragButton != DragNONE) {
-	//		VMMouseClick(&m_mouseMessage, TRUE);
-	//		m_mouseMessage.dragButton = DragNONE;
-	//	}
-	//}
-
-	//if (!CheckTargetState()) {
-	//	return;
-	//}
-	//m_mouseMessage.bUsePostMessage	= m_bUsePostMessageToMouseDrag;
-	//m_mouseMessage.hTargetWnd		= m_hMouseInputWnd;
-	//m_mouseMessage.dragStartPos		= m_currentPos;
-	//m_currentPos.x					+= deltaX;
-	//m_currentPos.y					+= deltaY;
-	//m_mouseMessage.dragEndPos		= m_currentPos;
-
-	//m_mouseMessage.uKeyState		= MK_LBUTTON;
-	//if (m_ctrl) {
-	//	m_mouseMessage.uKeyState |= MK_CONTROL;
-	//}
-	//if (m_shift) {
-	//	m_mouseMessage.uKeyState |= MK_SHIFT;
-	//}
-
-	//if (m_mouseMessage.dragButton != LButtonDrag) {
-	//	m_mouseMessage.dragButton = LButtonDrag;
-	//	VMMouseClick(&m_mouseMessage, FALSE);
-	//}
-	//VMMouseMove(&m_mouseMessage);
+	VMMouseDrag(&m_mouseMessage);
 }
 
 void MayaController::TrackExecute(int deltaX, int deltaY)
 {
-	VMMouseMessage mouseMessage = {0};
 	if (!CheckTargetState()) {
 		return;
 	}
 
-	mouseMessage.bUsePostMessage = m_bUsePostMessageToMouseDrag;
-	mouseMessage.hTargetWnd		= m_hMouseInputWnd;
-	mouseMessage.dragButton		= MButtonDrag;
-	mouseMessage.dragStartPos	= m_currentPos;
-	m_currentPos.x				+= deltaX;
-	m_currentPos.y				+= deltaY;
+	m_mouseMessage.bUsePostMessage	= m_bUsePostMessageToMouseDrag;
+	m_mouseMessage.hTargetWnd		= m_hMouseInputWnd;
+	m_mouseMessage.dragButton		= MButtonDrag;
+	m_mouseMessage.dragStartPos		= m_currentPos;
+	m_currentPos.x					+= deltaX;
+	m_currentPos.y					+= deltaY;
 
-	mouseMessage.dragEndPos		= m_currentPos;
+	m_mouseMessage.dragEndPos		= m_currentPos;
 	m_mouseMessage.uKeyState		= MK_MBUTTON;
 	if (m_ctrl) {
 		m_mouseMessage.uKeyState	|= MK_CONTROL;
@@ -315,52 +283,24 @@ void MayaController::TrackExecute(int deltaX, int deltaY)
 	if (m_shift) {
 		m_mouseMessage.uKeyState	|= MK_SHIFT;
 	}
-	VMMouseDrag(&mouseMessage);
-	//if (m_mouseMessage.dragButton != MButtonDrag) {
-	//	if (m_mouseMessage.dragButton != DragNONE) {
-	//		VMMouseClick(&m_mouseMessage, TRUE);
-	//		m_mouseMessage.dragButton = DragNONE;
-	//	}
-	//}
-	//if (!CheckTargetState()) {
-	//	return;
-	//}
-	//m_mouseMessage.bUsePostMessage	= m_bUsePostMessageToMouseDrag;
-	//m_mouseMessage.hTargetWnd		= m_hMouseInputWnd;
-	//m_mouseMessage.dragStartPos		= m_currentPos;
-	//m_currentPos.x					+= deltaX;
-	//m_currentPos.y					+= deltaY;
-	//m_mouseMessage.dragEndPos		= m_currentPos;
+	VMMouseDrag(&m_mouseMessage);
 
-	//m_mouseMessage.uKeyState		= MK_MBUTTON;
-	//if (m_ctrl) {
-	//	m_mouseMessage.uKeyState	|= MK_CONTROL;
-	//}
-	//if (m_shift) {
-	//	m_mouseMessage.uKeyState	|= MK_SHIFT;
-	//}
-	//if (m_mouseMessage.dragButton != MButtonDrag) {
-	//	m_mouseMessage.dragButton = MButtonDrag;
-	//	VMMouseClick(&m_mouseMessage, FALSE);
-	//}
-	//VMMouseMove(&m_mouseMessage);
 }
 
 void MayaController::DollyExecute(int deltaX, int deltaY)
 {
-	VMMouseMessage mouseMessage = {0};
 	if (!CheckTargetState()) {
 		return;
 	}
 
-	mouseMessage.bUsePostMessage = m_bUsePostMessageToMouseDrag;
-	mouseMessage.hTargetWnd		= m_hMouseInputWnd;
-	mouseMessage.dragButton		= RButtonDrag;
-	mouseMessage.dragStartPos	= m_currentPos;
-	m_currentPos.x				+= deltaX;
-	m_currentPos.y				+= deltaY;
+	m_mouseMessage.bUsePostMessage	= m_bUsePostMessageToMouseDrag;
+	m_mouseMessage.hTargetWnd		= m_hMouseInputWnd;
+	m_mouseMessage.dragButton		= RButtonDrag;
+	m_mouseMessage.dragStartPos		= m_currentPos;
+	m_currentPos.x					+= deltaX;
+	m_currentPos.y					+= deltaY;
 	
-	mouseMessage.dragEndPos		= m_currentPos;
+	m_mouseMessage.dragEndPos		= m_currentPos;
 	m_mouseMessage.uKeyState		= MK_RBUTTON;
 	if (m_ctrl) {
 		m_mouseMessage.uKeyState	|= MK_CONTROL;
@@ -368,36 +308,7 @@ void MayaController::DollyExecute(int deltaX, int deltaY)
 	if (m_shift) {
 		m_mouseMessage.uKeyState	|= MK_SHIFT;
 	}
-	VMMouseDrag(&mouseMessage);
-	//if (m_mouseMessage.dragButton != RButtonDrag) {
-	//	if (m_mouseMessage.dragButton != DragNONE) {
-	//		VMMouseClick(&m_mouseMessage, TRUE);
-	//		m_mouseMessage.dragButton = DragNONE;
-	//	}
-	//}
-
-	//if (!CheckTargetState()) {
-	//	return;
-	//}
-	//m_mouseMessage.bUsePostMessage	= m_bUsePostMessageToMouseDrag;
-	//m_mouseMessage.hTargetWnd		= m_hMouseInputWnd;
-	//m_mouseMessage.dragStartPos		= m_currentPos;
-	//m_currentPos.x					+= deltaX;
-	//m_currentPos.y					+= deltaY;
-	//m_mouseMessage.dragEndPos		= m_currentPos;
-
-	//m_mouseMessage.uKeyState		= MK_RBUTTON;
-	//if (m_ctrl) {
-	//	m_mouseMessage.uKeyState	|= MK_CONTROL;
-	//}
-	//if (m_shift) {
-	//	m_mouseMessage.uKeyState	|= MK_SHIFT;
-	//}
-	//if (m_mouseMessage.dragButton != RButtonDrag) {
-	//	m_mouseMessage.dragButton = RButtonDrag;
-	//	VMMouseClick(&m_mouseMessage, FALSE);
-	//}
-	//VMMouseMove(&m_mouseMessage);
+	VMMouseDrag(&m_mouseMessage);
 }
 
 //void MayaController::HotkeyExecute(I4C3DContext* pContext, PCTSTR szCommand) const
@@ -463,38 +374,22 @@ BOOL MayaController::IsModKeysDown(void)
 void MayaController::ModKeyDown(void)
 {
 	if (!m_bSyskeyDown) {
-		DWORD dwBuf = 0;
-		HWND hForeground = GetForegroundWindow();
-
-		DWORD dwThreadId = GetWindowThreadProcessId(hForeground, NULL);
-		DWORD dwTargetThreadId = GetWindowThreadProcessId(m_hKeyInputWnd, NULL);
-
-		AttachThreadInput(dwTargetThreadId, dwThreadId, TRUE);
-
-		SystemParametersInfo(SPI_GETFOREGROUNDLOCKTIMEOUT, 0, &dwBuf, 0);
-		SystemParametersInfo(SPI_SETFOREGROUNDLOCKTIMEOUT, 0, NULL, 0);
-
-		SetForegroundWindow(m_hTargetTopWnd);
-		Sleep(m_millisecSleepAfterKeyDown);
-
 		if (m_ctrl) {
-			VMVirtualKeyDown(m_hMouseInputWnd, VK_CONTROL, m_bUsePostMessageToSendKey);
+			VMVirtualKeyDown(m_hKeyInputWnd, VK_CONTROL, m_bUsePostMessageToSendKey);
 		}
 		if (m_alt) {
-			VMVirtualKeyDown(m_hMouseInputWnd, VK_MENU, m_bUsePostMessageToSendKey);
+			VMVirtualKeyDown(m_hKeyInputWnd, VK_MENU, m_bUsePostMessageToSendKey);
 		}
 		if (m_shift) {
-			VMVirtualKeyDown(m_hMouseInputWnd, VK_SHIFT, m_bUsePostMessageToSendKey);
+			VMVirtualKeyDown(m_hKeyInputWnd, VK_SHIFT, m_bUsePostMessageToSendKey);
 		}
-		SystemParametersInfo(SPI_SETFOREGROUNDLOCKTIMEOUT, 0, &dwBuf, 0);
-		AttachThreadInput(dwThreadId, dwTargetThreadId, FALSE);
 
 		m_bSyskeyDown = IsModKeysDown();
-		if (!m_bSyskeyDown) {
-			TCHAR szError[BUFFER_SIZE];
-			_stprintf_s(szError, _countof(szError), _T("修飾キーが押されませんでした[タイムアウト]。") );
-			LogDebugMessage(Log_Error, szError);
-		}
+		//if (!m_bSyskeyDown) {
+		//	TCHAR szError[BUFFER_SIZE];
+		//	_stprintf_s(szError, _countof(szError), _T("修飾キーが押されませんでした[タイムアウト]。") );
+		//	LogDebugMessage(Log_Error, szError);
+		//}
 	}
 }
 

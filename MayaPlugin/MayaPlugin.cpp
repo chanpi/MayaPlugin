@@ -28,7 +28,7 @@ BOOL				InitInstance(HINSTANCE, int);
 LRESULT CALLBACK	WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK	About(HWND, UINT, WPARAM, LPARAM);
 
-static int AnalyzeMessage(LPCSTR szMessage, LPSTR szCommand, SIZE_T size, double* pDeltaX, double* pDeltaY, char cTermination);
+static int AnalyzeMessage(I4C3DUDPPacket* pPacket, HWND* pHWnd, LPSTR szCommand, SIZE_T size, double* pDeltaX, double* pDeltaY, char cTermination);
 
 static SOCKET InitializeController(HWND hWnd, USHORT uPort);
 static void UnInitializeController(SOCKET socketHandler);
@@ -55,16 +55,16 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 
 	MyRegisterClass(hInstance);
 
-	//int argc = 0;
-	//LPTSTR *argv = NULL;
-	//argv = CommandLineToArgvW(GetCommandLine(), &argc);
-	//if (argc != 2) {
-	//	MessageBox(NULL, _T("[ERROR] 引数が足りません[例: MayaPlugin.exe 10001]。<MayaPlugin>"), szTitle, MB_OK | MB_ICONERROR);
-	//}
-	//g_uPort = static_cast<USHORT>(_wtoi(argv[1]));
-	//OutputDebugString(argv[1]);
-	//LocalFree(argv);
-	g_uPort = 10002;
+	int argc = 0;
+	LPTSTR *argv = NULL;
+	argv = CommandLineToArgvW(GetCommandLine(), &argc);
+	if (argc != 2) {
+		MessageBox(NULL, _T("[ERROR] 引数が足りません[例: MayaPlugin.exe 10001]。<MayaPlugin>"), szTitle, MB_OK | MB_ICONERROR);
+	}
+	g_uPort = static_cast<USHORT>(_wtoi(argv[1]));
+	OutputDebugString(argv[1]);
+	LocalFree(argv);
+	//g_uPort = 10002;
 
 	static WSAData wsaData;
 	WORD wVersion;
@@ -199,7 +199,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 	static MayaController controller;
 	static SOCKET socketHandler = INVALID_SOCKET;
-	char buffer[BUFFER_SIZE*4] = {0};
+	I4C3DUDPPacket packet = {0};
 	char szCommand[32] = {0};
 	double deltaX = 0;
 	double deltaY = 0;
@@ -218,7 +218,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case MY_WINSOCKSELECT:
 		switch (WSAGETSELECTEVENT(lParam)) {
 		case FD_READ:
-			nBytes = recv(socketHandler, buffer, _countof(buffer), 0);
+			nBytes = recv(socketHandler, (char*)&packet, sizeof(packet), 0);
 			if (nBytes == SOCKET_ERROR) {
 				_stprintf_s(szError, _countof(szError), _T("recv() : %d <MayaPlugin>"), WSAGetLastError());
 				LogDebugMessage(Log_Error, szError);
@@ -227,16 +227,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 			}
 
-			int scanCount = AnalyzeMessage(buffer, szCommand, _countof(szCommand), &deltaX, &deltaY, cTermination);
+			HWND hTargetWnd = 0;
+			int scanCount = AnalyzeMessage(&packet, &hTargetWnd, szCommand, _countof(szCommand), &deltaX, &deltaY, cTermination);
 			if (scanCount == 3) {
 				counter = 0;
-				controller.Execute(szCommand, deltaX, deltaY);
+				controller.Execute(hTargetWnd, szCommand, deltaX, deltaY);
 				Sleep(1);
 				doCount = TRUE;
 
 			} else if (scanCount == 1) {
 				if (_strcmpi(szCommand, COMMAND_INIT) == 0) {
-					if (!controller.Initialize(buffer, &cTermination)) {
+					if (!controller.Initialize(packet.szCommand, &cTermination)) {
 						_stprintf_s(szError, _countof(szError), _T("Mayaコントローラの初期化に失敗しています。"));
 						ReportError(szError);
 					}
@@ -251,7 +252,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case WM_TIMER:
 		if (doCount) {
 			counter += timer_interval;
-			if (300 < counter) {
+			if (cancelKeyDownMillisec < counter) {
 				controller.ModKeyUp();
 				doCount = FALSE;
 			}
@@ -359,16 +360,22 @@ void UnInitializeController(SOCKET socketHandler)
 	closesocket(socketHandler);
 }
 
-int AnalyzeMessage(LPCSTR szMessage, LPSTR szCommand, SIZE_T size, double* pDeltaX, double* pDeltaY, char cTermination)
+int AnalyzeMessage(I4C3DUDPPacket* pPacket, HWND* pHWnd, LPSTR szCommand, SIZE_T size, double* pDeltaX, double* pDeltaY, char cTermination)
 {
-	static char szFormat[BUFFER_SIZE/4] = {0};
+	static char szFormat[BUFFER_SIZE] = {0};
 	int scanCount = 0;
 	double deltaX = 0., deltaY = 0.;
+
+	if (pHWnd != NULL) {
+		*pHWnd = (HWND)(pPacket->hwnd[3] << 24 | pPacket->hwnd[2] << 16 | pPacket->hwnd[1] << 8 | pPacket->hwnd[0]);
+	}
+
 	if (szFormat[0] == '\0') {
 		sprintf_s(szFormat, sizeof(szFormat), "%%s %%lf %%lf%c", cTermination);
 	}
 	
-	scanCount = sscanf_s(szMessage, szFormat, szCommand, size, &deltaX, &deltaY);
+	scanCount = sscanf_s(pPacket->szCommand, szFormat, szCommand, size, &deltaX, &deltaY);
+
 	if (3 <= scanCount) {
 		*pDeltaX = deltaX;
 		*pDeltaY = deltaY;
