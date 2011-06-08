@@ -83,9 +83,11 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 	}
 
 #if _DEBUG || DEBUG
-	LogInitialize(Log_Debug);
+	LogFileOpenW("Maya", Log_Debug);
+	LogDebugMessage(Log_Debug, _T("Maya log file opened."));
 #else
-	LogInitialize(Log_Error);
+	LogFileOpenW("Maya", Log_Error);
+	//LogDebugMessage(Log_Error, _T("TEST!!!!!!!!!!! Maya log file opened."));
 #endif
 
 	// アプリケーションの初期化を実行します:
@@ -108,6 +110,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 
 	WSACleanup();
 	CleanupMutex();
+	LogFileCloseW();
+	LogDebugMessage(Log_Debug, _T("Maya log file closed."));
 	return (int) msg.wParam;
 }
 
