@@ -12,7 +12,7 @@
 #define MAX_LOADSTRING	100
 #define TIMER_ID		1
 
-static const int BUFFER_SIZE = 256;
+const int BUFFER_SIZE = 256;
 static const PCSTR COMMAND_INIT	= "init";
 static const PCSTR COMMAND_EXIT	= "exit";
 
@@ -60,11 +60,13 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 	argv = CommandLineToArgvW(GetCommandLine(), &argc);
 	if (argc != 2) {
 		MessageBox(NULL, _T("[ERROR] 引数が足りません[例: MayaPlugin.exe 10001]。<MayaPlugin>"), szTitle, MB_OK | MB_ICONERROR);
+		LocalFree(argv);
+		CleanupMutex();
+		return EXIT_FAILURE;
 	}
 	g_uPort = static_cast<USHORT>(_wtoi(argv[1]));
 	OutputDebugString(argv[1]);
 	LocalFree(argv);
-	//g_uPort = 10002;
 
 	static WSAData wsaData;
 	WORD wVersion;
@@ -74,25 +76,33 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 	nResult = WSAStartup(wVersion, &wsaData);
 	if (nResult != 0) {
 		MessageBox(NULL, _T("[ERROR] Initialize Winsock."), szTitle, MB_OK | MB_ICONERROR);
-		return FALSE;
+		CleanupMutex();
+		return EXIT_FAILURE;
 	}
 	if (wsaData.wVersion != wVersion) {
 		MessageBox(NULL, _T("[ERROR] Winsock バージョン."), szTitle, MB_OK | MB_ICONERROR);
 		WSACleanup();
-		return FALSE;
+		CleanupMutex();
+		return EXIT_FAILURE;
 	}
 
+	LOG_LEVEL logLevel = Log_Error;
 #if _DEBUG || DEBUG
-	LogFileOpenW("Maya", Log_Debug);
-	LogDebugMessage(Log_Debug, _T("Maya log file opened."));
+	logLevel = Log_Debug;
 #else
-	LogFileOpenW("Maya", Log_Error);
-	//LogDebugMessage(Log_Error, _T("TEST!!!!!!!!!!! Maya log file opened."));
+	logLevel = Log_Error;
 #endif
+	if (!LogFileOpenW("Maya", logLevel)) {
+		ReportError(_T("Mayaのログは出力されません。"));
+	}
+	LogDebugMessage(Log_Debug, _T("Maya log file opened."));
 
 	// アプリケーションの初期化を実行します:
 	if (!InitInstance (hInstance, nCmdShow))
 	{
+		WSACleanup();
+		CleanupMutex();
+		LogFileCloseW();
 		return FALSE;
 	}
 
@@ -292,6 +302,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		break;
 
 	case MY_I4C3DDESTROY:
+	case WM_CLOSE:
 	case WM_DESTROY:
 		UnInitializeController(socketHandler);
 		PostQuitMessage(0);

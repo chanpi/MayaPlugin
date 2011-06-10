@@ -3,6 +3,8 @@
 #include "I4C3DKeysHook.h"
 #include "I4C3DCommon.h"
 #include "Miscellaneous.h"
+#include <math.h>
+#include <float.h>
 
 static const int BUFFER_SIZE = 256;
 
@@ -27,13 +29,12 @@ MayaController::MayaController(void)
 	m_currentPos.y		= 0;
 	m_DisplayWidth		= GetSystemMetrics(SM_CXSCREEN);
 	m_DisplayHeight		= GetSystemMetrics(SM_CYSCREEN);
-	m_fTumbleRate		= 1;
-	m_fTrackRate		= 1;
-	m_fDollyRate		= 1;
+	m_fTumbleRate		= 0;
+	m_fTrackRate		= 0;
+	m_fDollyRate		= 0;
 	m_bUsePostMessageToSendKey		= FALSE;
 	m_bUsePostMessageToMouseDrag	= TRUE;
-	m_ctrl = m_shift = m_bSyskeyDown = FALSE;
-	m_alt = TRUE;
+	m_ctrl = m_alt = m_shift = m_bSyskeyDown = FALSE;
 
 	ZeroMemory(&m_mouseMessage, sizeof(m_mouseMessage));
 	m_mouseMessage.dragButton = DragNONE;
@@ -70,15 +71,21 @@ BOOL MayaController::Initialize(LPCSTR szBuffer, char* termination)
 	char tmpCommand[BUFFER_SIZE] = {0};
 	char szModKeys[BUFFER_SIZE] = {0};
 
-	sscanf_s(szBuffer, g_initCommandFormat, tmpCommand,	sizeof(tmpCommand), szModKeys, sizeof(szModKeys), &m_fTumbleRate, &m_fTrackRate, &m_fDollyRate, termination);
-	if (!m_fTumbleRate) {
+	sscanf_s(szBuffer, g_initCommandFormat, tmpCommand,	sizeof(tmpCommand), szModKeys, sizeof(szModKeys), &m_fTumbleRate, &m_fTrackRate, &m_fDollyRate, termination, sizeof(*termination));
+	if (fabs(m_fTumbleRate - 0.0) < DBL_EPSILON) {
 		m_fTumbleRate = 1.0;
 	}
-	if (!m_fTrackRate){
+	if (fabs(m_fTrackRate - 0.0) < DBL_EPSILON) {
 		m_fTrackRate = 1.0;
 	}
-	if (!m_fDollyRate) {
+	if (fabs(m_fDollyRate - 0.0) < DBL_EPSILON) {
 		m_fDollyRate = 1.0;
+	}
+
+	{
+		TCHAR szBuf[32];
+		_stprintf_s(szBuf, 32, _T("tum:%.2f, tra:%.2f dol:%.2f\n"), m_fTumbleRate, m_fTrackRate, m_fDollyRate);
+		OutputDebugString(szBuf);
 	}
 
 	return InitializeModifierKeys(szModKeys);
@@ -148,55 +155,82 @@ BOOL MayaController::GetTargetChildWnd(void)
 	m_hKeyInputWnd = NULL;
 	EnumChildWindows(m_hTargetTopWnd, EnumChildProcForKeyInput, (LPARAM)&m_hKeyInputWnd);
 	if (m_hKeyInputWnd == NULL) {
+		LogDebugMessage(Log_Error, _T("キー入力ウィンドウが取得できません。<MayaController::GetTargetChildWnd>"));
 		return FALSE;
 	}
 
 	m_hMouseInputWnd = NULL;
 	EnumChildWindows(m_hKeyInputWnd, EnumChildProcForMouseInput, (LPARAM)&m_hMouseInputWnd);
 	if (m_hMouseInputWnd == NULL) {
+		LogDebugMessage(Log_Error, _T("マウス入力ウィンドウが取得できません。<MayaController::GetTargetChildWnd>"));
 		return FALSE;
 	}
 	return TRUE;
 }
 
-BOOL MayaController::CheckTargetState(void)
+// コメントアウト 2011.06.10
+// GetTargetChildWndとで二重チェックになってしまうため。
+// GetTargetChildWndとAdjustCursorPosを使用
+//BOOL MayaController::CheckTargetState(void)
+//{
+//	if (m_hTargetTopWnd == NULL) {
+//		//ReportError(_T("ターゲットウィンドウが取得できません。<MayaController::CheckTargetState>"));
+//		LogDebugMessage(Log_Error, _T("ターゲットウィンドウが取得できません。<MayaController::CheckTargetState>"));
+//
+//	} else if (m_hKeyInputWnd == NULL) {
+//		LogDebugMessage(Log_Error, _T("キー入力ウィンドウが取得できません。<MayaController::CheckTargetState>"));
+//
+//	} else if (m_hMouseInputWnd == NULL) {
+//		LogDebugMessage(Log_Error, _T("マウス入力ウィンドウが取得できません。<MayaController::CheckTargetState>"));
+//
+//	} else {
+//		// ターゲットウィンドウの位置のチェック
+//		POINT tmpCurrentPos = m_currentPos;
+//		ClientToScreen(m_hMouseInputWnd, &tmpCurrentPos);
+//
+//		RECT windowRect;
+//		GetWindowRect(m_hMouseInputWnd, &windowRect);
+//		if (WindowFromPoint(tmpCurrentPos) != m_hMouseInputWnd ||
+//			tmpCurrentPos.x < windowRect.left+200 || windowRect.right-200 < tmpCurrentPos.x ||
+//			tmpCurrentPos.y < windowRect.top+200 || windowRect.bottom-200 < tmpCurrentPos.y) {
+//				if (m_mouseMessage.dragButton != DragNONE) {
+//					VMMouseClick(&m_mouseMessage, TRUE);
+//					m_mouseMessage.dragButton = DragNONE;
+//				}
+//
+//				RECT rect;
+//				GetClientRect(m_hMouseInputWnd, &rect);
+//				m_currentPos.x = rect.left + (rect.right - rect.left) / 2;
+//				m_currentPos.y = rect.top + (rect.bottom - rect.top) / 2;
+//		}
+//		return TRUE;
+//	}
+//
+//	return FALSE;
+//}
+
+void MayaController::AdjustCursorPos(void)
 {
-	if (m_hTargetTopWnd == NULL) {
-		//ReportError(_T("ターゲットウィンドウが取得できません。<MayaController::CheckTargetState>"));
-		LogDebugMessage(Log_Error, _T("ターゲットウィンドウが取得できません。<MayaController::CheckTargetState>"));
+	// ターゲットウィンドウの位置のチェック
+	POINT tmpCurrentPos = m_currentPos;
+	ClientToScreen(m_hMouseInputWnd, &tmpCurrentPos);
 
-	} else if (m_hKeyInputWnd == NULL) {
-		LogDebugMessage(Log_Error, _T("キー入力ウィンドウが取得できません。<MayaController::CheckTargetState>"));
+	RECT windowRect;
+	GetWindowRect(m_hMouseInputWnd, &windowRect);
+	if (WindowFromPoint(tmpCurrentPos) != m_hMouseInputWnd ||
+		tmpCurrentPos.x < windowRect.left+200 || windowRect.right-200 < tmpCurrentPos.x ||
+		tmpCurrentPos.y < windowRect.top+200 || windowRect.bottom-200 < tmpCurrentPos.y) {
+			if (m_mouseMessage.dragButton != DragNONE) {
+				VMMouseClick(&m_mouseMessage, TRUE);
+				m_mouseMessage.dragButton = DragNONE;
+			}
 
-	} else if (m_hMouseInputWnd == NULL) {
-		LogDebugMessage(Log_Error, _T("マウス入力ウィンドウが取得できません。<MayaController::CheckTargetState>"));
-
-	} else {
-		// ターゲットウィンドウの位置のチェック
-		POINT tmpCurrentPos = m_currentPos;
-		ClientToScreen(m_hMouseInputWnd, &tmpCurrentPos);
-
-		RECT windowRect;
-		GetWindowRect(m_hMouseInputWnd, &windowRect);
-		if (WindowFromPoint(tmpCurrentPos) != m_hMouseInputWnd ||
-			tmpCurrentPos.x < windowRect.left+200 || windowRect.right-200 < tmpCurrentPos.x ||
-			tmpCurrentPos.y < windowRect.top+200 || windowRect.bottom-200 < tmpCurrentPos.y) {
-				if (m_mouseMessage.dragButton != DragNONE) {
-					VMMouseClick(&m_mouseMessage, TRUE);
-					m_mouseMessage.dragButton = DragNONE;
-				}
-
-				RECT rect;
-				GetClientRect(m_hMouseInputWnd, &rect);
-				m_currentPos.x = rect.left + (rect.right - rect.left) / 2;
-				m_currentPos.y = rect.top + (rect.bottom - rect.top) / 2;
-		}
-		return TRUE;
+			RECT rect;
+			GetClientRect(m_hMouseInputWnd, &rect);
+			m_currentPos.x = rect.left + (rect.right - rect.left) / 2;
+			m_currentPos.y = rect.top + (rect.bottom - rect.top) / 2;
 	}
-
-	return FALSE;
 }
-
 
 void MayaController::Execute(HWND hWnd, LPCSTR szCommand, double deltaX, double deltaY)
 {
@@ -206,8 +240,6 @@ void MayaController::Execute(HWND hWnd, LPCSTR szCommand, double deltaX, double 
 	if (!GetTargetChildWnd()) {
 		return;
 	}
-
-	//ShowWindow(m_hTargetParentWnd, SW_SHOWMAXIMIZED);
 
 	if (_strcmpi(szCommand, COMMAND_TUMBLE) == 0) {
 		ModKeyDown();
@@ -241,9 +273,10 @@ void MayaController::Execute(HWND hWnd, LPCSTR szCommand, double deltaX, double 
 
 void MayaController::TumbleExecute(int deltaX, int deltaY)
 {
-	if (!CheckTargetState()) {
-		return;
-	}
+	//if (!CheckTargetState()) {
+	//	return;
+	//}
+	AdjustCursorPos();
 	m_mouseMessage.bUsePostMessage	= m_bUsePostMessageToMouseDrag;
 	m_mouseMessage.hTargetWnd		= m_hMouseInputWnd;
 	m_mouseMessage.dragButton		= LButtonDrag;
@@ -264,10 +297,11 @@ void MayaController::TumbleExecute(int deltaX, int deltaY)
 
 void MayaController::TrackExecute(int deltaX, int deltaY)
 {
-	if (!CheckTargetState()) {
-		return;
-	}
+	//if (!CheckTargetState()) {
+	//	return;
+	//}
 
+	AdjustCursorPos();
 	m_mouseMessage.bUsePostMessage	= m_bUsePostMessageToMouseDrag;
 	m_mouseMessage.hTargetWnd		= m_hMouseInputWnd;
 	m_mouseMessage.dragButton		= MButtonDrag;
@@ -289,10 +323,11 @@ void MayaController::TrackExecute(int deltaX, int deltaY)
 
 void MayaController::DollyExecute(int deltaX, int deltaY)
 {
-	if (!CheckTargetState()) {
-		return;
-	}
+	//if (!CheckTargetState()) {
+	//	return;
+	//}
 
+	AdjustCursorPos();
 	m_mouseMessage.bUsePostMessage	= m_bUsePostMessageToMouseDrag;
 	m_mouseMessage.hTargetWnd		= m_hMouseInputWnd;
 	m_mouseMessage.dragButton		= RButtonDrag;
@@ -325,9 +360,8 @@ void MayaController::DollyExecute(int deltaX, int deltaY)
  * 
  * 登録した修飾キーが押されたか確認します。
  * 押されていない場合は、Sleepします。
- * Sleepは最大retryCount回行い、Sleep間隔は
- * 回を重ねるごとに2倍していきます。
- * （最大 [1 << retryCount] msecのSleep）
+ * キーフックを利用してキー押下メッセージが発生したかどうかを調べています。
+ * 対象プログラムでメッセージが処理される前のキー押下の判断です。
  * 
  * @remarks
  * I4C3DKeysHook.dllのIsAllKeysDown()関数でキー押下を確認します。
@@ -337,34 +371,24 @@ void MayaController::DollyExecute(int deltaX, int deltaY)
  */
 BOOL MayaController::IsModKeysDown(void)
 {
-	const int retryCount = 3/*12*/;
-	int sleepInterval = 1;
-
 	int i = 0;
-	for (; i < retryCount; ++i) {
-		Sleep(sleepInterval);
-		{
-			TCHAR szBuf[32];
-			_stprintf_s(szBuf, 32, _T("%4d msec Sleep\n"), sleepInterval);
-			OutputDebugString(szBuf);
-		}
-
+	for (i = 0; i < waitModkeyDownCount; ++i) {
+		Sleep(1);
 		if (m_ctrl && !IsKeyDown(VK_CONTROL)) {
-			sleepInterval *= 2;
 			continue;
 		}
 		if (m_alt && !IsKeyDown(VK_MENU)) {
-			sleepInterval *= 2;
 			continue;
 		}
 		if (m_shift && !IsKeyDown(VK_SHIFT)) {
-			sleepInterval *= 2;
 			continue;
 		}
+
+		// 登録したキーは押されていた
 		break;
 	}
 
-	if (i < retryCount) {
+	if (i < waitModkeyDownCount) {
 		return TRUE;
 	} else {
 		return FALSE;
