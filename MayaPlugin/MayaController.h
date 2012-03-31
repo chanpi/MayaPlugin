@@ -1,23 +1,23 @@
 #pragma once
 
 #include "VirtualMotion.h"
+#include "CADController.h"
+#include "MacroPlugin.h"
 
-class MayaController
+class MayaController : public CADController, public MacroPlugin
 {
 public:
 	MayaController(void);
-	~MayaController(void);
+	virtual ~MayaController(void);
 
 	BOOL Initialize(LPCSTR szBuffer, char* termination);
-	void Execute(HWND hWnd, LPCSTR szCommand, double deltaX, double deltaY);
+	virtual void Execute(HWND hWnd, LPCSTR szCommand, double deltaX, double deltaY);
 	void ModKeyUp(void);
 
 private:
-	void TumbleExecute(int deltaX, int deltaY);
-	void TrackExecute(int deltaX, int deltaY);
-	void DollyExecute(int deltaX, int deltaY);
-
-	//void HotkeyExecute(I4C3DContext* pContext, PCTSTR szCommand) const;
+	virtual void TumbleExecute(int deltaX, int deltaY);
+	virtual void TrackExecute(int deltaX, int deltaY);
+	virtual void DollyExecute(int deltaX, int deltaY);
 
 	BOOL InitializeModifierKeys(PCSTR szModifierKeys);
 	BOOL GetTargetChildWnd(void);

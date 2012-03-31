@@ -6,8 +6,18 @@
 #include "MayaController.h"
 #include "Miscellaneous.h"
 #include "I4C3DCommon.h"
+#include "ErrorCodeList.h"
 #include <WinSock2.h>
 #include <ShellAPI.h>
+
+#include <cstdlib>	// 必要
+
+#if _DEBUG
+#define _CRTDBG_MAP_ALLOC
+#include <crtdbg.h>
+
+#define new  ::new( _NORMAL_BLOCK, __FILE__, __LINE__ )
+#endif
 
 #define MAX_LOADSTRING	100
 #define TIMER_ID		1
@@ -15,6 +25,7 @@
 const int BUFFER_SIZE = 256;
 static const PCSTR COMMAND_INIT	= "init";
 static const PCSTR COMMAND_EXIT	= "exit";
+static const PCSTR COMMAND_REGISTERMACRO	= "registermacro";
 
 // グローバル変数:
 HINSTANCE hInst;								// 現在のインターフェイス
@@ -41,29 +52,46 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 	UNREFERENCED_PARAMETER(hPrevInstance);
 	UNREFERENCED_PARAMETER(lpCmdLine);
 
- 	// TODO: ここにコードを挿入してください。
+#if DEBUG || _DEBUG
+	_CrtSetDbgFlag( _CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+#endif
+
+	// TODO: ここにコードを挿入してください。
 	MSG msg;
 	HACCEL hAccelTable;
 
 	// グローバル文字列を初期化しています。
 	LoadString(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
 	LoadString(hInstance, IDC_MAYAPLUGIN, szWindowClass, MAX_LOADSTRING);
-
-	if (!ExecuteOnce(szTitle)) {
-		return EXIT_SUCCESS;
-	}
-
 	MyRegisterClass(hInstance);
+
+	LOG_LEVEL logLevel = Log_Error;
+#if _DEBUG || DEBUG
+	logLevel = Log_Debug;
+#else
+	logLevel = Log_Error;
+#endif
+	if (!LogFileOpenW("Maya", logLevel)) {
+		//ReportError(_T("Mayaのログは出力されません。"));
+	}
+	LogDebugMessage(Log_Debug, _T("Maya log file opened."));
 
 	int argc = 0;
 	LPTSTR *argv = NULL;
 	argv = CommandLineToArgvW(GetCommandLine(), &argc);
-	if (argc != 2) {
-		MessageBox(NULL, _T("[ERROR] 引数が足りません[例: MayaPlugin.exe 10001]。<MayaPlugin>"), szTitle, MB_OK | MB_ICONERROR);
+	if (argc < 3) {	// 最後の引数はランチャーからもらう"-run"
+		LogDebugMessage(Log_Error, _T("[ERROR] 引数が足りません[例: MayaPlugin.exe 10002]。<MayaPlugin>"));
 		LocalFree(argv);
-		CleanupMutex();
-		return EXIT_FAILURE;
+		LogFileCloseW();
+		return EXIT_NO_ARGUMENTS;
 	}
+	if (0 != _tcsicmp(argv[2], _T("-run"))) {
+		LogDebugMessage(Log_Error, _T("起動オプションがありません。このアプリケーションはランチャーから起動される必要があります。"));
+		LocalFree(argv);
+		LogFileCloseW();
+		return EXIT_NOT_EXECUTABLE;
+	}
+
 	g_uPort = static_cast<USHORT>(_wtoi(argv[1]));
 	OutputDebugString(argv[1]);
 	LocalFree(argv);
@@ -75,35 +103,23 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 	wVersion = MAKEWORD(2,2);
 	nResult = WSAStartup(wVersion, &wsaData);
 	if (nResult != 0) {
-		MessageBox(NULL, _T("[ERROR] Initialize Winsock."), szTitle, MB_OK | MB_ICONERROR);
-		CleanupMutex();
-		return EXIT_FAILURE;
+		LogDebugMessage(Log_Error, _T("[ERROR] Initialize Winsock."));
+		LogFileCloseW();
+		return EXIT_SOCKET_ERROR;
 	}
 	if (wsaData.wVersion != wVersion) {
-		MessageBox(NULL, _T("[ERROR] Winsock バージョン."), szTitle, MB_OK | MB_ICONERROR);
+		LogDebugMessage(Log_Error, _T("[ERROR] Winsock バージョン."));
 		WSACleanup();
-		CleanupMutex();
-		return EXIT_FAILURE;
+		LogFileCloseW();
+		return EXIT_SOCKET_ERROR;
 	}
-
-	LOG_LEVEL logLevel = Log_Error;
-#if _DEBUG || DEBUG
-	logLevel = Log_Debug;
-#else
-	logLevel = Log_Error;
-#endif
-	if (!LogFileOpenW("Maya", logLevel)) {
-		ReportError(_T("Mayaのログは出力されません。"));
-	}
-	LogDebugMessage(Log_Debug, _T("Maya log file opened."));
 
 	// アプリケーションの初期化を実行します:
 	if (!InitInstance (hInstance, nCmdShow))
 	{
 		WSACleanup();
-		CleanupMutex();
 		LogFileCloseW();
-		return FALSE;
+		return EXIT_SYSTEM_ERROR;
 	}
 
 	hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_MAYAPLUGIN));
@@ -119,7 +135,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 	}
 
 	WSACleanup();
-	CleanupMutex();
 	LogFileCloseW();
 	LogDebugMessage(Log_Debug, _T("Maya log file closed."));
 	return (int) msg.wParam;
@@ -226,6 +241,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	{
 	case WM_CREATE:
 		socketHandler = InitializeController(hWnd, g_uPort);
+		if (INVALID_SOCKET == socketHandler) {
+			PostQuitMessage(EXIT_SOCKET_ERROR);
+			return 0;
+		}
 		SetTimer(hWnd, TIMER_ID, timer_interval, NULL);
 		break;
 
@@ -236,7 +255,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			if (nBytes == SOCKET_ERROR) {
 				_stprintf_s(szError, _countof(szError), _T("recv() : %d <MayaPlugin>"), WSAGetLastError());
 				LogDebugMessage(Log_Error, szError);
-				//ReportError(szError);
 				break;
 
 			}
@@ -252,12 +270,25 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			} else if (scanCount == 1) {
 				if (_strcmpi(szCommand, COMMAND_INIT) == 0) {
 					if (!controller.Initialize(packet.szCommand, &cTermination)) {
-						_stprintf_s(szError, _countof(szError), _T("Mayaコントローラの初期化に失敗しています。"));
-						ReportError(szError);
+						_stprintf_s(szError, _countof(szError), _T("Mayaプラグインの初期化に失敗しています。"));
+						LogDebugMessage(Log_Error, szError);
 					}
 				} else if (_strcmpi(szCommand, COMMAND_EXIT) == 0) {
 					OutputDebugString(_T("exit\n"));
 					DestroyWindow(hWnd);
+
+				// マクロの登録
+				} else if (_strcmpi(szCommand, COMMAND_REGISTERMACRO) == 0) {
+					if (!controller.RegisterMacro(packet.szCommand, &cTermination)) {
+						_stprintf_s(szError, _countof(szError), _T("Mayaプラグインのマクロの登録に失敗しています。"));
+						LogDebugMessage(Log_Error, szError);
+					}
+
+				// マクロの実行
+				} else {
+					controller.Execute(hTargetWnd, szCommand, 0, 0);
+					Sleep(1);
+					doCount = TRUE;
 				}
 			}
 		}
@@ -299,13 +330,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case MY_I4C3DREBOOT:
 		UnInitializeController(socketHandler);
 		socketHandler = InitializeController(hWnd, g_uPort);
+		if (INVALID_SOCKET == socketHandler) {
+			PostQuitMessage(EXIT_SOCKET_ERROR);
+			return 0;
+		}
 		break;
 
 	case MY_I4C3DDESTROY:
 	case WM_CLOSE:
 	case WM_DESTROY:
 		UnInitializeController(socketHandler);
-		PostQuitMessage(0);
+		PostQuitMessage(EXIT_SUCCESS);
 		break;
 	default:
 		return DefWindowProc(hWnd, message, wParam, lParam);
@@ -343,7 +378,6 @@ SOCKET InitializeController(HWND hWnd, USHORT uPort)
 	socketHandler = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if (socketHandler == INVALID_SOCKET) {
 		_stprintf_s(szError, _countof(szError), _T("[ERROR] socket() : %d"), WSAGetLastError());
-		ReportError(szError);
 		LogDebugMessage(Log_Error, szError);
 		return INVALID_SOCKET;
 	}
@@ -355,7 +389,6 @@ SOCKET InitializeController(HWND hWnd, USHORT uPort)
 	nResult = bind(socketHandler, (const SOCKADDR*)&address, sizeof(address));
 	if (nResult == SOCKET_ERROR) {
 		_stprintf_s(szError, _countof(szError), _T("[ERROR] bind() : %d"), WSAGetLastError());
-		ReportError(szError);
 		LogDebugMessage(Log_Error, szError);
 		closesocket(socketHandler);
 		return INVALID_SOCKET;
@@ -363,8 +396,9 @@ SOCKET InitializeController(HWND hWnd, USHORT uPort)
 
 	if (WSAAsyncSelect(socketHandler, hWnd, MY_WINSOCKSELECT, FD_READ) == SOCKET_ERROR) {
 		TCHAR* szError = _T("ソケットイベント通知設定に失敗しました。<MayaPlugin::InitializeController>");
-		ReportError(szError);
 		LogDebugMessage(Log_Error, szError);
+		closesocket(socketHandler);
+		return INVALID_SOCKET;
 	}
 
 	return socketHandler;
