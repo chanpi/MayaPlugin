@@ -51,13 +51,13 @@
       <WarningLevel>Level4</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)\..\I4C3DKeysHook\I4C3DKeysHook;$(SolutionDir)\..\Misc;$(SolutionDir)\..\I4C3DDriver\I4C3DDriver;$(SolutionDir)\..\VirtualMotion\VirtualMotion;$(SolutionDir)\..\RTTPlugin\RTTPlugin;$(SolutionDir)\..\I4C3DLauncher\I4C3DLauncher;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\..\I4C3DKeysHook\I4C3DKeysHook;$(SolutionDir)\..\Misc;$(SolutionDir)\..\I4C3DDriver\I4C3DDriver;$(SolutionDir)\..\VirtualMotion\VirtualMotion;$(SolutionDir)\..\RTTPlugin\RTTPlugin;$(SolutionDir)\..\I4C3DLauncher\I4C3DLauncher;$(SolutionDir)\..\CertificateManager\CertificateManager;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>$(SolutionDir)\..\I4C3DDriver\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>ws2_32.lib;VirtualMotion.lib;HmKeysHook.lib;Misc.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)\..\I4C3DDriver\Debug;$(SolutionDir)\..\CertificateManager\Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>ws2_32.lib;VirtualMotion.lib;HmKeysHook.lib;Misc.lib;CertificateManager.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -68,7 +68,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)\..\I4C3DKeysHook\I4C3DKeysHook;$(SolutionDir)\..\Misc;$(SolutionDir)\..\I4C3DDriver\I4C3DDriver;$(SolutionDir)\..\VirtualMotion\VirtualMotion;$(SolutionDir)\..\RTTPlugin\RTTPlugin;$(SolutionDir)\..\I4C3DLauncher\I4C3DLauncher;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\..\I4C3DKeysHook\I4C3DKeysHook;$(SolutionDir)\..\Misc;$(SolutionDir)\..\I4C3DDriver\I4C3DDriver;$(SolutionDir)\..\VirtualMotion\VirtualMotion;$(SolutionDir)\..\RTTPlugin\RTTPlugin;$(SolutionDir)\..\I4C3DLauncher\I4C3DLauncher;$(SolutionDir)\..\CertificateManager\CertificateManager;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
@@ -76,8 +76,8 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalLibraryDirectories>$(SolutionDir)\..\I4C3DDriver\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>ws2_32.lib;VirtualMotion.lib;HmKeysHook.lib;Misc.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)\..\I4C3DDriver\Release;$(SolutionDir)\..\CertificateManager\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>ws2_32.lib;VirtualMotion.lib;HmKeysHook.lib;Misc.lib;CertificateManager.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>

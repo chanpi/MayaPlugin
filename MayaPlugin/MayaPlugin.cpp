@@ -7,6 +7,7 @@
 #include "Misc.h"
 #include "I4C3DCommon.h"
 #include "SharedConstants.h"
+#include "CertificateManager.h"
 #include <WinSock2.h>
 #include <ShellAPI.h>
 
@@ -86,21 +87,31 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 	int argc = 0;
 	LPTSTR *argv = NULL;
 	argv = CommandLineToArgvW(GetCommandLine(), &argc);
-	if (argc < 3) {	// 最後の引数はランチャーからもらう"-run"
+	if (argc < 4) {	// 最後の引数はランチャーからもらう"-run"
 		LoggingMessage(Log_Error, _T(MESSAGE_ERROR_PLUGIN_ARGUMENT), GetLastError(), g_FILE, __LINE__);
 		LocalFree(argv);
 		LogFileCloseW();
 		return EXIT_NO_ARGUMENTS;
 	}
-	if (0 != _tcsicmp(argv[2], g_szExecutableOption)) {
+
+	// ライセンスファイル名取得
+	int result = CheckLicense(argv[1]);
+	if (result != EXIT_SUCCESS) {
+		LoggingMessage(Log_Error, _T(MESSAGE_ERROR_CERT_FAILED), GetLastError(), g_FILE, __LINE__);
+		LocalFree(argv);
+		LogFileCloseW();
+		return result;
+	}
+
+	if (0 != _tcsicmp(argv[3], g_szExecutableOption)) {
 		LoggingMessage(Log_Error, _T(MESSAGE_ERROR_PLUGIN_OPTION), GetLastError(), g_FILE, __LINE__);
 		LocalFree(argv);
 		LogFileCloseW();
 		return EXIT_NOT_EXECUTABLE;
 	}
 
-	g_uPort = static_cast<USHORT>(_wtoi(argv[1]));
-	OutputDebugString(argv[1]);
+	g_uPort = static_cast<USHORT>(_wtoi(argv[2]));
+	OutputDebugString(argv[2]);
 	LocalFree(argv);
 
 	static WSAData wsaData;
