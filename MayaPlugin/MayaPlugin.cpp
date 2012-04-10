@@ -79,7 +79,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 #else
 	logLevel = Log_Error;
 #endif
-	if (!LogFileOpenW(SHARED_LOG_FILE_NAME, logLevel)) {
+	if (!LogFileOpenW(SHARED_LOG_FILE_DIRECTORY, SHARED_LOG_FILE_NAME, logLevel)) {
 	}
 
 	LoggingMessage(Log_Debug, _T(MESSAGE_DEBUG_LOG_OPEN), GetLastError(), g_FILE, __LINE__);
@@ -114,9 +114,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 	OutputDebugString(argv[2]);
 	LocalFree(argv);
 
-	static WSAData wsaData;
-	WORD wVersion;
-	int nResult;
+	static WSAData wsaData = {0};
+	WORD wVersion = 0;
+	int nResult = 0;
 
 	wVersion = MAKEWORD(2,2);
 	nResult = WSAStartup(wVersion, &wsaData);
@@ -205,7 +205,7 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
 //        この関数で、グローバル変数でインスタンス ハンドルを保存し、
 //        メイン プログラム ウィンドウを作成および表示します。
 //
-BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
+BOOL InitInstance(HINSTANCE hInstance, int /*nCmdShow*/)
 {
    HWND hWnd;
 
@@ -353,6 +353,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case MY_I4C3DDESTROY:
 	case WM_CLOSE:
 	case WM_DESTROY:
+		controller.CleanupMacro();
 		UnInitializeController(socketHandler);
 		PostQuitMessage(EXIT_SUCCESS);
 		break;
@@ -384,8 +385,8 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 
 SOCKET InitializeController(HWND hWnd, USHORT uPort)
 {
-	SOCKET socketHandler;
-	SOCKADDR_IN address;
+	SOCKET socketHandler = INVALID_SOCKET;
+	SOCKADDR_IN address = {0};
 	int nResult = 0;
 
 	socketHandler = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);

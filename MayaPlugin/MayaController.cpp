@@ -90,8 +90,8 @@ BOOL MayaController::Initialize(LPCSTR szBuffer, char* termination)
 	}
 
 	{
-		TCHAR szBuf[32];
-		_stprintf_s(szBuf, 32, _T("tum:%.2f, tra:%.2f dol:%.2f\n"), m_fTumbleRate, m_fTrackRate, m_fDollyRate);
+		TCHAR szBuf[64] = {0};
+		_stprintf_s(szBuf, _countof(szBuf), _T("tum:%.2f, tra:%.2f dol:%.2f\n"), m_fTumbleRate, m_fTrackRate, m_fDollyRate);
 		OutputDebugString(szBuf);
 	}
 
@@ -444,8 +444,8 @@ void MayaController::ModKeyUp(void)
 
 BOOL CALLBACK EnumChildProcForKeyInput(HWND hWnd, LPARAM lParam)
 {
-	TCHAR szWindowTitle[BUFFER_SIZE];
-	TCHAR szClassTitle[BUFFER_SIZE];
+	TCHAR szWindowTitle[BUFFER_SIZE] = {0};
+	TCHAR szClassTitle[BUFFER_SIZE] = {0};
 	GetWindowText(hWnd, szWindowTitle, _countof(szWindowTitle));
 	GetClassName(hWnd, szClassTitle, _countof(szClassTitle));
 
@@ -458,8 +458,8 @@ BOOL CALLBACK EnumChildProcForKeyInput(HWND hWnd, LPARAM lParam)
 
 BOOL CALLBACK EnumChildProcForMouseInput(HWND hWnd, LPARAM lParam)
 {
-	TCHAR szWindowTitle[BUFFER_SIZE];
-	TCHAR szClassTitle[BUFFER_SIZE];
+	TCHAR szWindowTitle[BUFFER_SIZE] = {0};
+	TCHAR szClassTitle[BUFFER_SIZE] = {0};
 	GetWindowText(hWnd, szWindowTitle, _countof(szWindowTitle));
 	GetClassName(hWnd, szClassTitle, _countof(szClassTitle));
 
